@@ -1,0 +1,86 @@
+---
+title: "Coursera Machine Leaning Assignment"
+author: "Aron O'Connor"
+date: "December 29, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This report analyzes data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants in order to predict (using machine learning techniques) whether a dumbell bicep curl is being performed correctly or not.  The data used in this analysis was downloaded from a website containing human activity recognition exercises and is cited in the appendix.  Several key packages were used in this analysis and are listed below for reproduceability purposes, and testing/training partitions are created prior to performing any analysis or exploration.
+
+library(caret)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(randomForest)
+
+
+```{r, include=FALSE}
+library(caret)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(randomForest)
+library()
+library()
+library()
+library()
+```
+
+```{r}
+df <- read.csv("pml-training.csv")
+inTrain <- createDataPartition(y=df$classe, p=0.7, list=F)
+train <- df[inTrain,]
+test <- df[-inTrain,]
+train$classe <- as.factor(train$classe)
+```
+
+## Data Analysis
+
+Before attempting any machine learning techniques, let's see if we can infer any basic patterns in the data by doing some plotting. There are a TON of variables in this data set (160), but a few that may be useful to take a look at.  We will start by plotting the total acceleration for eache sensor with respect to classe.
+
+```{r}
+q1 <- qplot(total_accel_belt, colour=classe, data=train, geom="density")
+q2 <- qplot(total_accel_forearm, colour=classe, data=train, geom="density")
+q3 <- qplot(total_accel_dumbbell, colour=classe, data=train, geom="density")
+q4 <- qplot(total_accel_arm, colour=classe, data=train, geom="density")
+grid.arrange(q1,q2,q3,q4, ncol=2)
+```
+
+The correct way to lift the dumbbell (E) seems to have lower accelerometer values for most sensors with the exception of the dumbbell sensor.  There isn't a ton of differentiation using the density plots, so we will go ahead and begin fitting a boosted model to the data. However, since there are many 'N/A' variables in the data set, we can subset the data to only include varibles with solid data (columns 8:11, 36:48, 59:67, 83:85, 101, 112:123, 139, 150:160) and then replace the 'N/A's with zero values.
+
+```{r, cache=TRUE}
+train_cmplt <- train[,c(8:11,36:48,59:67,83:85,101,112:123,139,150:160)]
+train_cmplt[is.na(train_cmplt)] <- 0
+modfit <- train(classe ~ ., data=train_cmplt, method="gbm", verbose=F)
+print(modfit)
+```
+
+We have a model!  Now we can test this model against our test set that was partitioned at the beginning.  This is called cross validation.  By putting the predicted values in a table with actual classe values from the test set we can get a feel for how accurate the model is.
+
+``` {r}
+test_cmplt <- test[,c(8:11,36:48,59:67,83:85,101,112:123,139,150:160)]
+test_cmplt[is.na(test_cmplt)] <- 0
+pred <- predict(modfit,test_cmplt)
+test_cmplt$predRight <- pred==test_cmplt$classe
+answers <- table(pred,test_cmplt$classe)
+accuracy <- (answers[1,1]+answers[2,2]+answers[3,3]+answers[4,4]+answers[5,5])/sum(answers)
+accuracy
+```
+
+## Conclusion
+So our model accuracy is 96% (in-sample error = 4%). Given that out of sample error is always equal to or greater than in-sample error, we can estimate the out of sample error to be somewhere around 90%. 
+
+## Appendix
+
+### Citations
+The data set used in this report was aquired from the following source:
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#weight_lifting_exercises#ixzz4UHWjOYgE
